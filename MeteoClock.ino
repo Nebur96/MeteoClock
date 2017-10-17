@@ -215,16 +215,16 @@ String getUpdatedDate()
   unsigned long epochTime = timeClient.getEpochTime();
   time_t local, utc;
   utc = epochTime;
-  TimeChangeRule usEDT =
+  TimeChangeRule WET =
   {
-    "EDT", Second, Sun, Mar, 2, -300
+    "WET", Last, Sun, Mar, 1, -60
   };
-  TimeChangeRule usEST =
+  TimeChangeRule WEST =
   {
-    "EST", First, Sun, Nov, 2, -360
+    "WEST", Last, Sun, Oct, 2, 0
   };
-  Timezone usEastern(usEDT, usEST);
-  local = usEastern.toLocal(utc);
+  Timezone EUR(WET, WEST);
+  local = EUR.toLocal(utc);
 
   return daysOfWeek[weekday(local) - 1] + String(", ") + day(local) + String(" ") + months[month(local) - 1] + String(" ") + year(local);
 }
