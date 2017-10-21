@@ -1,31 +1,51 @@
+//SCREEN LIBRARIES AND GRAPHICS
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
-#include <NTPClient.h>
+#include "GfxUi.h"
+#include "Image.h"
+
+//JSON LIBRARY
+#include <ArduinoJson.h>
+
+//WIFI CONNECTION LIBRARIES
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
-#include <NTPClient.h>
-#include <TimeLib.h>
-#include <Timezone.h>
 
-#include "GfxUi.h"
-#include "Constants.h"
-#include "Images.h"
+//TIME LIBRARIES
+#include <NTPClient.h>
+#include <Timezone.h>
+#include <TimeLib.h>
+
+//WEATHER LIBRARY
 #include "Weather.h"
 
-Weather weather = Weather(WUNDERGROUND_API, WUNDERGROUND_COUNTRY, WUNDERGROUND_CITY, numberOfForecastPredictions);
+//PROJECT CONSTANTS VARIABLES
+#include "Constants.h"
+
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
 GfxUi ui = GfxUi(&tft);
+Image image = Image();
+Weather weather = Weather(WUNDERGROUND_API, WUNDERGROUND_COUNTRY, WUNDERGROUND_CITY, NUMBER_OF_FORECAST_PREDICTIONS);
 
+WiFiClient client;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600, 60000);
 
-int hours = 0;
-int minutes = 0;
-int seconds = 0;
-int lastMillis = 0;
+typedef struct {
+  int hours;
+  int minutes;
+  int seconds;
+} Time;
+
+Time t;
 
 int elapsedMinutes = 0;
 int elapsedHours = 0;
+
+int sunriseHour = 7;
+int sunsetHour = 19;
+
+unsigned long lastMillis = 0;
 
 void setup(void)
 {
@@ -39,13 +59,14 @@ void setup(void)
     Serial.print(".");
   }
 
+  //INTERFACE DRAWING
   setInitializationScreen();
   setConnectionToWifiScreen();
   setDownloadScreen();
   setMeteoClockInterface();
-  
-  elapsedHours = hours;
-  elapsedMinutes = (minutes < 30) ? 30 - minutes : minutes - 30;
+
+  elapsedHours = t.hours;
+  elapsedMinutes = (t.minutes < 30) ? 30 - t.minutes : t.minutes - 30;
 }
 
 void loop()
@@ -53,25 +74,24 @@ void loop()
   if (millis() - lastMillis >= 1000)
   {
     lastMillis = millis();
-    seconds++;
-    if (seconds >= 60)
+    t.seconds++;
+    if (t.seconds >= 60)
     {
-      minutes++;
+      t.minutes++;
       elapsedMinutes++;
-      seconds = 0;
+      t.seconds = 0;
 
-      if (minutes >= 60)
+      if (t.minutes >= 60)
       {
-        minutes = 0;
-        hours++;
+        t.minutes = 0;
+        t.hours++;
         elapsedHours++;
 
-        if (hours >= 24)
+        if (t.hours >= 24)
         {
-          hours = 0;
+          t.hours = 0;
         }
       }
-
       updateClockScreen();
     }
 
@@ -80,22 +100,16 @@ void loop()
       weather.getCurrentWeatherConditions();
       weather.getWeatherForecast();
       setMeteoClockInterface();
+      elapsedHours = 0;
+      elapsedMinutes = 0;
     } else if (elapsedMinutes == 30) {
       getUpdatedHours();
+      defineCurrentDayTime();
       weather.getCurrentWeatherConditions();
       updateCurrentWeatherScreen();
       elapsedMinutes = 0;
     }
-
   }
-}
-
-void getUpdatedHours() {
-  timeClient.update();
-
-  hours = timeClient.getHours();
-  minutes = timeClient.getMinutes();
-  seconds = timeClient.getSeconds();
 }
 
 void setInitializationScreen()
@@ -131,28 +145,27 @@ void setDownloadScreen()
   ui.setTextAlignment(CENTER);
   ui.drawString(120, 130, "Loading info...");
 
-  ui.drawProgressBar(0, 170, 240, 30, 0, ILI9341_WHITE, ILI9341_DARKCYAN);
+  ui.drawProgressBar(0, 170, 238, 30, 0, ILI9341_WHITE, ILI9341_DARKCYAN);
   timeClient.begin();
-  ui.drawProgressBar(0, 170, 240, 30, 25, ILI9341_WHITE, ILI9341_DARKCYAN);
+  ui.drawProgressBar(0, 170, 238, 30, 20, ILI9341_WHITE, ILI9341_DARKCYAN);
   getUpdatedHours();
-  ui.drawProgressBar(0, 170, 240, 30, 50, ILI9341_WHITE, ILI9341_DARKCYAN);
+  ui.drawProgressBar(0, 170, 238, 30, 40, ILI9341_WHITE, ILI9341_DARKCYAN);
+  getSunriseAndSunsetHours();
+  defineCurrentDayTime();
+  ui.drawProgressBar(0, 170, 238, 30, 60, ILI9341_WHITE, ILI9341_DARKCYAN);
   weather.getCurrentWeatherConditions();
-  ui.drawProgressBar(0, 170, 240, 30, 75, ILI9341_WHITE, ILI9341_DARKCYAN);
+  ui.drawProgressBar(0, 170, 238, 30, 80, ILI9341_WHITE, ILI9341_DARKCYAN);
   weather.getWeatherForecast();
-  ui.drawProgressBar(0, 170, 240, 30, 100, ILI9341_WHITE, ILI9341_DARKCYAN);
+  ui.drawProgressBar(0, 170, 238, 30, 100, ILI9341_WHITE, ILI9341_DARKCYAN);
 }
 
 void setMeteoClockInterface()
 {
   tft.fillScreen(ILI9341_BLACK);
   yield();
-
   updateDateScreen();
-
   updateClockScreen();
-
   updateCurrentWeatherScreen();
-
   updateForecastWeatherScreen();
 }
 
@@ -185,7 +198,7 @@ void updateCurrentWeatherScreen() {
   ui.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
   ui.drawString(100, 190, String(weather.conditions.temperature) + String((char)247) + "C");
 
-  tft.drawRGBBitmap(10, 150, getCurrentWeatherBigImage(parseIconsFromWebsite(weather.conditions.icon)), 80, 80);
+  tft.drawRGBBitmap(10, 150, image.getCurrentWeatherBigImage(weather.conditions.icon), image.BIG_IMAGE_WIDTH, image.BIG_IMAGE_HEIGH);
 }
 
 void updateForecastWeatherScreen() {
@@ -194,10 +207,10 @@ void updateForecastWeatherScreen() {
 
   ui.setTextAlignment(CENTER);
   ui.drawString(60, 250, weather.forecasts[1].weekDay);
-  tft.drawRGBBitmap(20, 270, getCurrentWeatherSmallImage(weather.forecasts[1].icon), 50, 50);
+  tft.drawRGBBitmap(20, 270, image.getCurrentWeatherSmallImage(weather.forecasts[1].icon), image.SMALL_IMAGE_WIDTH, image.SMALL_IMAGE_HEIGH);
 
   ui.drawStringInInterval(130, 240, 250, weather.forecasts[2].weekDay);
-  tft.drawRGBBitmap(140, 270, getCurrentWeatherSmallImage(weather.forecasts[2].icon), 50, 50);
+  tft.drawRGBBitmap(140, 270, image.getCurrentWeatherSmallImage(weather.forecasts[2].icon), image.SMALL_IMAGE_WIDTH, image.SMALL_IMAGE_HEIGH);
 
   ui.setTextAlignment(LEFT);
   ui.setTextColor(ILI9341_RED, ILI9341_BLACK);
@@ -207,6 +220,25 @@ void updateForecastWeatherScreen() {
   ui.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
   ui.drawString(80, 295, weather.forecasts[1].low_temperature);
   ui.drawString(200, 295, weather.forecasts[2].low_temperature);
+}
+
+String defineCurrentDayTime() {
+  image.setCurrentDayTime((t.hours <= sunriseHour || t.hours >= sunsetHour) ? NIGHT : DAY);
+}
+
+void getUpdatedHours() {
+  timeClient.update();
+  
+  t.hours = timeClient.getHours();
+  t.minutes = timeClient.getMinutes();
+  t.seconds = timeClient.getSeconds();
+}
+
+String getDisplayTime()
+{
+  String minutesToDisplay = (t.minutes >= 10) ? String(t.minutes) : "0" + String(t.minutes);
+  String hoursToDisplay = (t.hours >= 10) ? String(t.hours) : "0" + String(t.hours);
+  return hoursToDisplay + ":" + minutesToDisplay;
 }
 
 String getUpdatedDate()
@@ -223,191 +255,68 @@ String getUpdatedDate()
   {
     "WEST", Last, Sun, Oct, 2, 0
   };
+  
   Timezone EUR(WET, WEST);
   local = EUR.toLocal(utc);
 
   return daysOfWeek[weekday(local) - 1] + String(", ") + day(local) + String(" ") + months[month(local) - 1] + String(" ") + year(local);
 }
 
-String getDisplayTime()
+
+void getSunriseAndSunsetHours()
 {
-  String minutesToDisplay = (minutes >= 10) ? String(minutes) : "0" + String(minutes);
-  String hoursToDisplay = (hours >= 10) ? String(hours) : "0" + String(hours);
-  return hoursToDisplay + ":" + minutesToDisplay;
-}
+  WiFiClient client;
 
-String parseIconsFromWebsite(String currentIcon){
-  return (hours <= nightUntil || hours >= nightFrom) ? "nt_" + currentIcon : currentIcon;
-}
+  String response = "";
 
-const unsigned short* getCurrentWeatherBigImage(String currentIcon) {
-  if (currentIcon == "sunny") {
-    return sunny_big;
-  } else if (currentIcon == "clear") {
-    return sunny_big;
-  } else if (currentIcon == "clear") {
-    return sunny_big;
-  } else if (currentIcon == "chanceflurries") {
-    return snow_big;
-  } else if (currentIcon == "chancesnow") {
-    return snow_big;
-  } else if (currentIcon == "flurries") {
-    return snow_big;
-  } else if (currentIcon == "nt_chancesnow") {
-    return snow_big;
-  } else if (currentIcon == "nt_chanceflurries") {
-    return snow_big;
-  } else if (currentIcon == "nt_flurries") {
-    return snow_big;
-  } else if (currentIcon == "nt_snow") {
-    return snow_big;
-  } else if (currentIcon == "snow") {
-    return snow_big;
-  } else if (currentIcon == "chancerain") {
-    return rain_big;
-  } else if (currentIcon == "nt_chancerain") {
-    return rain_big;
-  } else if (currentIcon == "nt_rain") {
-    return rain_big;
-  } else if (currentIcon == "rain") {
-    return rain_big;
-  } else if (currentIcon == "chancesleet") {
-    return rain_big;
-  } else if (currentIcon == "nt_chancesleet") {
-    return rain_big;
-  } else if (currentIcon == "nt_sleet") {
-    return rain_big;
-  } else if (currentIcon == "sleet") {
-    return rain_big;
-  } else if (currentIcon == "chancetstorms") {
-    return lightning_big;
-  } else if (currentIcon == "nt_tstorms") {
-    return lightning_big;
-  } else if (currentIcon == "chancetstorms") {
-    return lightning_big;
-  } else if (currentIcon == "nt_chancetstorms") {
-    return lightning_big;
-  } else if (currentIcon == "tstorms") {
-    return lightning_big;
-  } else if (currentIcon == "cloudy") {
-    return cloudy_big;
-  } else if (currentIcon == "nt_cloudy") {
-    return cloudy_big;
-  } else if (currentIcon == "nt_fog") {
-    return cloudy_big;
-  } else if (currentIcon == "fog") {
-    return cloudy_big;
-  } else if (currentIcon == "nt_hazy") {
-    return cloudy_big;
-  } else if (currentIcon == "hazy") {
-    return cloudy_big;
-  } else if (currentIcon == "nt_clear") {
-    return moon_big;
-  } else if (currentIcon == "nt_sunny") {
-    return moon_big;
-  } else if (currentIcon == "mostlycloudy") {
-    return sun_most_cloudy_big;
-  } else if (currentIcon == "mostlysunny") {
-    return sun_and_clouds_big;
-  } else if (currentIcon == "partlycloudy") {
-    return sun_and_clouds_big;
-  } else if (currentIcon == "partlysunny") {
-    return sun_most_cloudy_big;
-  } else if (currentIcon == "nt_mostlycloudy") {
-    return moon_most_cloudy_big;
-  } else if (currentIcon == "nt_mostlysunny") {
-    return moon_cloudy_big;
-  } else if (currentIcon == "nt_partlycloudy") {
-    return moon_cloudy_big;
-  } else if (currentIcon == "nt_partlysunny") {
-    return moon_most_cloudy_big;
-  } else {
-    return unknown_big;
+  const char* HOST = "api.sunrise-sunset.org";
+  const int HTTP_PORT = 80;
+
+  if (!client.connect(HOST, HTTP_PORT))
+  {
+    Serial.println("connection failed");
   }
-}
 
-const unsigned short* getCurrentWeatherSmallImage(String currentIcon) {
-  if (currentIcon == "sunny") {
-    return sunny_small;
-  } else if (currentIcon == "clear") {
-    return sunny_small;
-  } else if (currentIcon == "clear") {
-    return sunny_small;
-  } else if (currentIcon == "chanceflurries") {
-    return snow_small;
-  } else if (currentIcon == "chancesnow") {
-    return snow_small;
-  } else if (currentIcon == "flurries") {
-    return snow_small;
-  } else if (currentIcon == "nt_chancesnow") {
-    return snow_small;
-  } else if (currentIcon == "nt_chanceflurries") {
-    return snow_small;
-  } else if (currentIcon == "nt_flurries") {
-    return snow_small;
-  } else if (currentIcon == "nt_snow") {
-    return snow_small;
-  } else if (currentIcon == "snow") {
-    return snow_small;
-  } else if (currentIcon == "chancerain") {
-    return rain_small;
-  } else if (currentIcon == "nt_chancerain") {
-    return rain_small;
-  } else if (currentIcon == "nt_rain") {
-    return rain_small;
-  } else if (currentIcon == "rain") {
-    return rain_small;
-  } else if (currentIcon == "chancesleet") {
-    return rain_small;
-  } else if (currentIcon == "nt_chancesleet") {
-    return rain_small;
-  } else if (currentIcon == "nt_sleet") {
-    return rain_small;
-  } else if (currentIcon == "sleet") {
-    return rain_small;
-  } else if (currentIcon == "chancetstorms") {
-    return lightning_small;
-  } else if (currentIcon == "nt_tstorms") {
-    return lightning_small;
-  } else if (currentIcon == "chancetstorms") {
-    return lightning_small;
-  } else if (currentIcon == "nt_chancetstorms") {
-    return lightning_small;
-  } else if (currentIcon == "tstorms") {
-    return lightning_small;
-  } else if (currentIcon == "cloudy") {
-    return cloudy_small;
-  } else if (currentIcon == "nt_cloudy") {
-    return cloudy_small;
-  } else if (currentIcon == "nt_fog") {
-    return cloudy_small;
-  } else if (currentIcon == "fog") {
-    return cloudy_small;
-  } else if (currentIcon == "nt_hazy") {
-    return cloudy_small;
-  } else if (currentIcon == "hazy") {
-    return cloudy_small;
-  } else if (currentIcon == "nt_clear") {
-    return moon_small;
-  } else if (currentIcon == "nt_sunny") {
-    return moon_small;
-  } else if (currentIcon == "mostlycloudy") {
-    return sun_most_cloudy_small;
-  } else if (currentIcon == "mostlysunny") {
-    return sun_and_clouds_small;
-  } else if (currentIcon == "partlycloudy") {
-    return sun_and_clouds_small;
-  } else if (currentIcon == "partlysunny") {
-    return sun_most_cloudy_small;
-  } else if (currentIcon == "nt_mostlycloudy") {
-    return moon_most_cloudy_small;
-  } else if (currentIcon == "nt_mostlysunny") {
-    return moon_cloudy_small;
-  } else if (currentIcon == "nt_partlycloudy") {
-    return moon_cloudy_small;
-  } else if (currentIcon == "nt_partlysunny") {
-    return moon_most_cloudy_small;
+  String url = "/json?lat=";
+  url += lat;
+  url += "&lng=";
+  url += lng;
+
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+               "Host: " + HOST + "\r\n" +
+               "Connection: close\r\n\r\n");
+
+  unsigned long timeout = millis();
+
+  while (client.available() == 0)
+  {
+    if (millis() - timeout > 5000)
+    {
+      Serial.println(">>> Client Timeout Conditions!");
+      client.stop();
+      return;
+    }
+  }
+
+  while (client.available()) {
+    response += client.readStringUntil('\r');
+  }
+
+  response = response.substring(response.indexOf("{"));
+
+  DynamicJsonBuffer jsonBuffer;
+
+  JsonObject& root = jsonBuffer.parseObject(response);
+  jsonBuffer.clear();
+
+  if (root["status"] == "OK") {
+    String result = root["results"]["sunrise"].as<String>();
+    sunriseHour = result.substring(0, 1).toInt();
+
+    result = root["results"]["sunset"].as<String>();
+    sunsetHour = hoursPM[result.substring(0, 1).toInt() - 1];
   } else {
-    return unknown_small;
+    sunriseHour = 7;
+    sunsetHour = 19;
   }
 }

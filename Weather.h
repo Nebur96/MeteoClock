@@ -1,10 +1,9 @@
 #include <WString.h>
 #include <ESP8266WiFi.h>
 #include <ArduinoJson.h>
-#include <stdlib.h>
 
-#ifndef WundergroundClient_h
-#define WundergroundClient_h
+#ifndef Weather_h
+#define Weather_h
 
 class Weather
 {
