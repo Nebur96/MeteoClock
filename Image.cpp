@@ -99,7 +99,6 @@ const unsigned short* Image::getCurrentWeatherBigImage(String currentIcon) {
 }
 
 const unsigned short* Image::getCurrentWeatherSmallImage(String currentIcon) {
-  currentIcon = (_dayTime == DAY) ? currentIcon : "nt_" + currentIcon;
   
   if (currentIcon == "sunny") {
     return sunny_small;
