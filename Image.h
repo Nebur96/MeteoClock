@@ -1,6 +1,4 @@
 #include<WString.h>
-#include <ESP8266WiFi.h>
-#include <ArduinoJson.h>
 
 #ifndef Image_h
 #define Image_h
@@ -15,6 +13,7 @@ class Image
     Image();
     const unsigned short* getCurrentWeatherBigImage(String currentIcon);
     const unsigned short* getCurrentWeatherSmallImage(String currentIcon);
+    const unsigned short* getNoWiFi();
     void setCurrentDayTime(DayTime dayTime);
     const int BIG_IMAGE_HEIGH = 80;
     const int  BIG_IMAGE_WIDTH = 80;

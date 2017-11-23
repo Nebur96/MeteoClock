@@ -1,115 +1,105 @@
-//SCREEN LIBRARIES AND GRAPHICS
-#include <Adafruit_GFX.h>
-#include <Adafruit_ILI9341.h>
-#include "GfxUi.h"
-#include "Image.h"
-
-//JSON LIBRARY
-#include <ArduinoJson.h>
-
-//WIFI CONNECTION LIBRARIES
-#include <ESP8266WiFi.h>
-#include <WiFiUdp.h>
-
-//TIME LIBRARIES
-#include <NTPClient.h>
-#include <Timezone.h>
-#include <TimeLib.h>
-
-//WEATHER LIBRARY
-#include "Weather.h"
-
-//PROJECT CONSTANTS VARIABLES
-#include "Constants.h"
+#include "MeteoClock.h"
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
 GfxUi ui = GfxUi(&tft);
 Image image = Image();
 Weather weather = Weather(WUNDERGROUND_API, WUNDERGROUND_COUNTRY, WUNDERGROUND_CITY, NUMBER_OF_FORECAST_PREDICTIONS);
+Astronomy astronomy = Astronomy(LAT, LNG, SUNRISE_HOURS, SUNSET_HOURS);
+DaylightSaving daylightSaving = DaylightSaving();
 
-WiFiClient client;
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600, 60000);
 
-typedef struct {
-  int hours;
-  int minutes;
-  int seconds;
-} Time;
+Errors error;
 
-Time t;
+unsigned long lastMinute = 999999;
 
-int elapsedMinutes = 0;
-int elapsedHours = 0;
-
-int sunriseHour = 7;
-int sunsetHour = 19;
-
-unsigned long lastMillis = 0;
+byte packetBuffer[NTP_PACKET_SIZE];
 
 void setup(void)
 {
+  setInitializationScreen();
+
   Serial.begin(115200);
 
-  WiFi.hostname(HOSTNAME);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
+  error.sunPositionsError = false;
+  error.currentConditionsError = false;
+  error.forecastConditionsError = false;
 
+  //reset saved settings
+  //wifiManager.resetSettings();
+  wifiManager.setAPCallback(configModeCallback);
+  wifiManager.setTimeout(180);
+  if (!wifiManager.autoConnect(HOSTNAME)) {
+    Serial.println("failed to connect and hit timeout");
+    delay(3000);
+    //reset and try again, or maybe put it to deep sleep
+    ESP.reset();
+    delay(5000);
+  }
   //INTERFACE DRAWING
-  setInitializationScreen();
-  setConnectionToWifiScreen();
   setDownloadScreen();
   setMeteoClockInterface();
+}
 
-  elapsedHours = t.hours;
-  elapsedMinutes = (t.minutes < 30) ? 30 - t.minutes : t.minutes - 30;
+void configModeCallback (WiFiManager *myWiFiManager) {
+  tft.fillScreen(ILI9341_BLACK);
+  yield();
+  tft.setTextSize(2);
+  ui.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
+  ui.setTextAlignment(CENTER);
+  tft.drawRGBBitmap(80, 70, image.getNoWiFi(), image.BIG_IMAGE_WIDTH, image.BIG_IMAGE_HEIGH);
+  ui.drawString(120, 170, "No connection,");
+  ui.drawString(120, 200, "configure a new AP!");
 }
 
 void loop()
 {
-  if (millis() - lastMillis >= 1000)
-  {
-    lastMillis = millis();
-    t.seconds++;
-    if (t.seconds >= 60)
-    {
-      t.minutes++;
-      elapsedMinutes++;
-      t.seconds = 0;
-
-      if (t.minutes >= 60)
-      {
-        t.minutes = 0;
-        t.hours++;
-        elapsedHours++;
-
-        if (t.hours >= 24)
-        {
-          t.hours = 0;
-        }
-      }
-      updateClockScreen();
-    }
-
-    if (elapsedHours == 24) {
-      getUpdatedHours();
-      weather.getCurrentWeatherConditions();
-      weather.getWeatherForecast();
-      setMeteoClockInterface();
-      elapsedHours = 0;
-      elapsedMinutes = 0;
-    } else if (elapsedMinutes == 30) {
-      getUpdatedHours();
-      defineCurrentDayTime();
-      weather.getCurrentWeatherConditions();
-      updateCurrentWeatherScreen();
-      elapsedMinutes = 0;
-    }
+  if (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    return;
   }
+
+  dealWithFailedRequests();
+
+  if (lastMinute != minute())
+  {
+    lastMinute = minute();
+    updateClockScreen();
+    dealWithUpdates();
+  }
+}
+
+void dealWithUpdates() {
+  if (hour() == 0 && minute() == 0) {
+    midnightUpdate();
+  } else if (minute() % 30 == 0) {
+    halfHourUpdate();
+  }
+}
+
+void dealWithFailedRequests() {
+  if (error.sunPositionsError) {
+    error.sunPositionsError = astronomy.updateSunriseAndSunsetHours();
+    defineCurrentDayTime();
+  } else if (error.currentConditionsError) {
+    error.currentConditionsError = weather.getCurrentWeatherConditions();
+  } else if (error.forecastConditionsError) {
+    error.forecastConditionsError = weather.getWeatherForecast();
+  }
+}
+
+void midnightUpdate() {
+  error.sunPositionsError = astronomy.updateSunriseAndSunsetHours();
+  error.currentConditionsError = weather.getCurrentWeatherConditions();
+  error.forecastConditionsError = weather.getWeatherForecast();
+  setMeteoClockInterface();
+}
+
+void halfHourUpdate() {
+  defineCurrentDayTime();
+  daylightSaving.calculateDaySavingTime(hour(), day(), month(), year());
+  error.currentConditionsError = weather.getCurrentWeatherConditions();
+  updateCurrentWeatherScreen();
 }
 
 void setInitializationScreen()
@@ -121,19 +111,8 @@ void setInitializationScreen()
   tft.setTextSize(3);
   ui.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
   ui.setTextAlignment(CENTER);
-  ui.drawString(120, 140, "MeteoClock");
-}
-
-void setConnectionToWifiScreen()
-{
-  tft.fillScreen(ILI9341_BLACK);
-  yield();
-  tft.setTextSize(2);
-  ui.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
-  ui.setTextAlignment(CENTER);
-  ui.drawString(120, 130, "Connected to: \n");
-  ui.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-  ui.drawString(120, 170, String(ssid));
+  ui.drawString(120, 140, HOSTNAME);
+  delay(2000);
 }
 
 void setDownloadScreen()
@@ -146,16 +125,18 @@ void setDownloadScreen()
   ui.drawString(120, 130, "Loading info...");
 
   ui.drawProgressBar(0, 170, 238, 30, 0, ILI9341_WHITE, ILI9341_DARKCYAN);
-  timeClient.begin();
+  ntpUDP.begin(localPort);
   ui.drawProgressBar(0, 170, 238, 30, 20, ILI9341_WHITE, ILI9341_DARKCYAN);
-  getUpdatedHours();
+  setSyncProvider(getNtpTime);
+  setSyncInterval(300);
   ui.drawProgressBar(0, 170, 238, 30, 40, ILI9341_WHITE, ILI9341_DARKCYAN);
-  getSunriseAndSunsetHours();
+  error.sunPositionsError = astronomy.updateSunriseAndSunsetHours();
+  daylightSaving.calculateDaySavingTime(hour(), day(), month(), year());
   defineCurrentDayTime();
   ui.drawProgressBar(0, 170, 238, 30, 60, ILI9341_WHITE, ILI9341_DARKCYAN);
-  weather.getCurrentWeatherConditions();
+  error.currentConditionsError = weather.getCurrentWeatherConditions();
   ui.drawProgressBar(0, 170, 238, 30, 80, ILI9341_WHITE, ILI9341_DARKCYAN);
-  weather.getWeatherForecast();
+  error.forecastConditionsError = weather.getWeatherForecast();
   ui.drawProgressBar(0, 170, 238, 30, 100, ILI9341_WHITE, ILI9341_DARKCYAN);
 }
 
@@ -222,101 +203,65 @@ void updateForecastWeatherScreen() {
   ui.drawString(200, 295, weather.forecasts[2].low_temperature);
 }
 
-String defineCurrentDayTime() {
-  image.setCurrentDayTime((t.hours <= sunriseHour || t.hours >= sunsetHour) ? NIGHT : DAY);
-}
-
-void getUpdatedHours() {
-  timeClient.update();
-  
-  t.hours = timeClient.getHours();
-  t.minutes = timeClient.getMinutes();
-  t.seconds = timeClient.getSeconds();
+void defineCurrentDayTime() {
+  int hours = hour();
+  image.setCurrentDayTime((hours <= astronomy.sunriseHour || hours >= astronomy.sunsetHour) ? NIGHT : DAY);
 }
 
 String getDisplayTime()
 {
-  String minutesToDisplay = (t.minutes >= 10) ? String(t.minutes) : "0" + String(t.minutes);
-  String hoursToDisplay = (t.hours >= 10) ? String(t.hours) : "0" + String(t.hours);
+  String minutesToDisplay = (minute() >= 10) ? String(minute()) : "0" + String(minute());
+  String hoursToDisplay = (hour() >= 10) ? String(hour()) : "0" + String(hour());
   return hoursToDisplay + ":" + minutesToDisplay;
 }
 
 String getUpdatedDate()
 {
-  timeClient.update();
-  unsigned long epochTime = timeClient.getEpochTime();
-  time_t local, utc;
-  utc = epochTime;
-  TimeChangeRule WET =
-  {
-    "WET", Last, Sun, Mar, 1, -60
-  };
-  TimeChangeRule WEST =
-  {
-    "WEST", Last, Sun, Oct, 2, 0
-  };
-  
-  Timezone EUR(WET, WEST);
-  local = EUR.toLocal(utc);
-
-  return daysOfWeek[weekday(local) - 1] + String(", ") + day(local) + String(" ") + months[month(local) - 1] + String(" ") + year(local);
+  return daysOfWeek[(weekday() - 1)] + String(", ") + day() + String(" ") + months[month() - 1] + String(" ") + year();
 }
 
-
-void getSunriseAndSunsetHours()
+void sendNTPpacket(IPAddress &address)
 {
-  WiFiClient client;
+  // set all bytes in the buffer to 0
+  memset(packetBuffer, 0, NTP_PACKET_SIZE);
+  // Initialize values needed to form NTP request
+  // (see URL above for details on the packets)
+  packetBuffer[0] = 0b11100011;   // LI, Version, Mode
+  packetBuffer[1] = 0;     // Stratum, or type of clock
+  packetBuffer[2] = 6;     // Polling Interval
+  packetBuffer[3] = 0xEC;  // Peer Clock Precision
+  // 8 bytes of zero for Root Delay & Root Dispersion
+  packetBuffer[12] = 49;
+  packetBuffer[13] = 0x4E;
+  packetBuffer[14] = 49;
+  packetBuffer[15] = 52;
+  // all NTP fields have been given values, now
+  // you can send a packet requesting a timestamp:
+  ntpUDP.beginPacket(address, 123); //NTP requests are to port 123
+  ntpUDP.write(packetBuffer, NTP_PACKET_SIZE);
+  ntpUDP.endPacket();
+}
 
-  String response = "";
-
-  const char* HOST = "api.sunrise-sunset.org";
-  const int HTTP_PORT = 80;
-
-  if (!client.connect(HOST, HTTP_PORT))
-  {
-    Serial.println("connection failed");
-  }
-
-  String url = "/json?lat=";
-  url += lat;
-  url += "&lng=";
-  url += lng;
-
-  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-               "Host: " + HOST + "\r\n" +
-               "Connection: close\r\n\r\n");
-
-  unsigned long timeout = millis();
-
-  while (client.available() == 0)
-  {
-    if (millis() - timeout > 5000)
-    {
-      Serial.println(">>> Client Timeout Conditions!");
-      client.stop();
-      return;
+time_t getNtpTime()
+{
+  IPAddress ntpServerIP;
+  while (ntpUDP.parsePacket() > 0);
+  WiFi.hostByName(NTP_POOL, ntpServerIP);
+  sendNTPpacket(ntpServerIP);
+  uint32_t beginWait = millis();
+  while (millis() - beginWait < 20000) {
+    int size = ntpUDP.parsePacket();
+    if (size >= NTP_PACKET_SIZE) {
+      ntpUDP.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
+      unsigned long secsSince1900;
+      // convert four bytes starting at location 40 to a long integer
+      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
+      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+      secsSince1900 |= (unsigned long)packetBuffer[43];
+      return secsSince1900 - 2208988800UL + daylightSaving.timeZone * SECS_PER_HOUR;
     }
   }
 
-  while (client.available()) {
-    response += client.readStringUntil('\r');
-  }
-
-  response = response.substring(response.indexOf("{"));
-
-  DynamicJsonBuffer jsonBuffer;
-
-  JsonObject& root = jsonBuffer.parseObject(response);
-  jsonBuffer.clear();
-
-  if (root["status"] == "OK") {
-    String result = root["results"]["sunrise"].as<String>();
-    sunriseHour = result.substring(0, 1).toInt();
-
-    result = root["results"]["sunset"].as<String>();
-    sunsetHour = hoursPM[result.substring(0, 1).toInt() - 1];
-  } else {
-    sunriseHour = 7;
-    sunsetHour = 19;
-  }
+  return 0;
 }

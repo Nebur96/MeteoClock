@@ -21,7 +21,6 @@ class GfxUi {
     void setTextAlignment(TextAlignment alignment);
     void setTextColor(uint16_t c);
     void setTextColor(uint16_t c, uint16_t bg);
-    void drawBmp(String filename, uint16_t x, uint16_t y);
     void drawProgressBar(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t percentage, uint16_t frameColor, uint16_t barColor);
 
   private:
@@ -29,9 +28,6 @@ class GfxUi {
     TextAlignment _alignment = LEFT;
     uint16_t _textColor;
     uint16_t _backgroundColor;
-    uint16_t read16(File &f);
-    uint32_t read32(File &f);
-
 };
 
 #endif

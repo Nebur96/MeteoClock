@@ -1,18 +1,20 @@
 #include "Image.h"
 #include "Images_Store.h"
 
-
 Image::Image() {
-  Serial.begin(115200);
 };
 
 void Image::setCurrentDayTime(DayTime dayTime) {
   _dayTime = dayTime;
 }
 
+const unsigned short* Image::getNoWiFi() {
+  return noWiFi;
+}
+
 const unsigned short* Image::getCurrentWeatherBigImage(String currentIcon) {
   currentIcon = (_dayTime == DAY) ? currentIcon : "nt_" + currentIcon;
-  
+
   if (currentIcon == "sunny") {
     return sunny_big;
   } else if (currentIcon == "clear") {
@@ -99,7 +101,7 @@ const unsigned short* Image::getCurrentWeatherBigImage(String currentIcon) {
 }
 
 const unsigned short* Image::getCurrentWeatherSmallImage(String currentIcon) {
-  
+
   if (currentIcon == "sunny") {
     return sunny_small;
   } else if (currentIcon == "clear") {

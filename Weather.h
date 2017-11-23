@@ -24,20 +24,20 @@ class Weather
 
   public:
     Weather(char* WUNDERGROUND_KEY, char* COUNTRY_CODE, char* CITY_CODE, int NUMBER_OF_FORECASTS);
-    void getCurrentWeatherConditions();
-    void getWeatherForecast();
+    boolean getCurrentWeatherConditions();
+    boolean getWeatherForecast();
     Condition conditions;
     Forecast forecasts[3];
   private:
     WiFiClient client;
-
+   
     const int _HTTP_PORT = 80;
     const char * _HOST = "api.wunderground.com";
 
     char* _WUNDERGROUND_KEY;
     char* _COUNTRY_CODE;
     char* _CITY_CODE;
-    
+
     int _NUMBER_OF_FORECASTS;
 };
 
