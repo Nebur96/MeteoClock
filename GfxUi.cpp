@@ -12,14 +12,21 @@ void GfxUi::drawString(int x, int y, char *text) {
   switch (_alignment) {
     case LEFT:
       x1 = x;
+      _tft->fillRect(x1, y, 240, h, ILI9341_BLACK);
+      yield();
       break;
     case CENTER:
       x1 = x - w / 2;
+      _tft->fillRect(0, y, 240, h, ILI9341_BLACK);
+      yield();
       break;
     case RIGHT:
       x1 = x - w;
+      _tft->fillRect(0, y, x1 + w, h, ILI9341_BLACK);
+      yield();
       break;
   }
+
   _tft->setCursor(x1, y);
   _tft->print(text);
 }

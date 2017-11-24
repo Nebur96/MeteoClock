@@ -183,15 +183,7 @@ void updateCurrentWeatherScreen() {
 }
 
 void updateForecastWeatherScreen() {
-  ui.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
   tft.setTextSize(2);
-
-  ui.setTextAlignment(CENTER);
-  ui.drawString(60, 250, weather.forecasts[1].weekDay);
-  tft.drawRGBBitmap(20, 270, image.getCurrentWeatherSmallImage(weather.forecasts[1].icon), image.SMALL_IMAGE_WIDTH, image.SMALL_IMAGE_HEIGH);
-
-  ui.drawStringInInterval(130, 240, 250, weather.forecasts[2].weekDay);
-  tft.drawRGBBitmap(140, 270, image.getCurrentWeatherSmallImage(weather.forecasts[2].icon), image.SMALL_IMAGE_WIDTH, image.SMALL_IMAGE_HEIGH);
 
   ui.setTextAlignment(LEFT);
   ui.setTextColor(ILI9341_RED, ILI9341_BLACK);
@@ -201,6 +193,14 @@ void updateForecastWeatherScreen() {
   ui.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
   ui.drawString(80, 295, weather.forecasts[1].low_temperature);
   ui.drawString(200, 295, weather.forecasts[2].low_temperature);
+
+  ui.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+  ui.setTextAlignment(CENTER);
+  ui.drawString(60, 250, weather.forecasts[1].weekDay);
+  tft.drawRGBBitmap(20, 270, image.getCurrentWeatherSmallImage(weather.forecasts[1].icon), image.SMALL_IMAGE_WIDTH, image.SMALL_IMAGE_HEIGH);
+
+  ui.drawStringInInterval(130, 240, 250, weather.forecasts[2].weekDay);
+  tft.drawRGBBitmap(140, 270, image.getCurrentWeatherSmallImage(weather.forecasts[2].icon), image.SMALL_IMAGE_WIDTH, image.SMALL_IMAGE_HEIGH);
 }
 
 void defineCurrentDayTime() {
