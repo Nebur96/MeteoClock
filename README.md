@@ -1,17 +1,40 @@
-﻿# MeteoClock
+# MeteoClock
 
-MeteoClock is an arduino based clock that displays current date, hours, weather information and forecast for the next 2 days. It requires internet connection to run properly and get all information from webservices. Every half hour it updates the current time from a NTP Server and the current weather as well. At midnight it refresh the whole screen updating all the information it displays.
+MeteoClock is an arduino based clock that displays current date, hours, weather information and forecast for the next 2 days. It requires internet connection to run properly and get all information from webservices. Every half hour it updates the current time from a NTP Server and the current weather as well. At midnight it refresh the whole screen updating all the information it displays. It uses a nodeMCU(ESP8266) and a 2.2" Serial Port TFT SPI LCD Screen Module with ILI9342 driver.
 
-![Alt text](/resources/IMG_20171021_193103.jpg?raw=true "MeteoClock Preview")
+![alt-text-1](/demo/day_picture.jpg "MeteoClock Day Preview") ![alt-text-2](/demo/night_picture.jpg "MeteoClock Night Preview")
 
+# Implemented Features:
 
-MeteoClock features:
+- display current date
+- display current time
+- display current weather
+- display weather forecast (next 2 days)
+- display correct icons according to weather condition
+- get correct sunrise and sunset hours by gps coordinate
+- change icons between day and night icon sets 
+- WiFi connection manager
+- daylight savings changes (Portugal only)
 
-- display current date  -> ✓
-- display current hours  -> ✓
-- display current weather  -> ✓
-- display forecast for next 2 days  -> ✓
-- display correct icons according to weather condition  -> ✓
-- get correct sunrise and sunset hours by gps coordinate to change between day and night icons  -> ✓
-- create web interface to interact with MeteoClock and change user definitions without have to change it on code
-- create Auto-Management for WiFi Connections
+# Setup:
+
+Install the following libraries:
+- Adafruit_GFX
+- Adafruit_ILI9341
+- ArduinoJson
+- ESP8266WiFi
+- WiFiUDP
+- DNSServer
+- ESP8266WebServer
+- WiFiManager
+- TimeLib
+
+Edit the file "config.h" and enter your values:
+- WUNDERGROUD_API -> your Wunderground API
+- WUNDERGROUND_COUNTRY -> your country Wunderground reference
+- WUNDERGROUND_CITY -> your city Wunderground reference
+- LAT -> latitude of your location
+- LNG -> longitude of your location
+- SUNSET_HOURS -> your default hours for sunset 
+- SUNRISE_HOURS -> your default hours for sunrise
+- NTP_POOL -> NTP pool to retrieve time

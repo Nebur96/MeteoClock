@@ -5,18 +5,21 @@
 #include "Image.h"
 
 //JSON LIBRARY
-#include <ArduinoJson.h>
+#include <ArduinoJson.h>         //https://github.com/bblanchon/ArduinoJson
 
 //WIFI CONNECTION LIBRARIES
 #include <ESP8266WiFi.h>
-#include <WiFiUDP.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
 
 //TIME LIBRARIES
-#include <TimeLib.h>
-#include "DaylightSaving.h"
+#include <time.h>
+#include <sys/time.h>
+#include <coredecls.h>
+
+//TIMER LIBRARIES
+#include <TimerObject.h>         //https://github.com/aron-bordin/ArduinoTimerObject
 
 //WEATHER LIBRARY
 #include "Weather.h"
@@ -43,16 +46,35 @@
 //WiFi CONSTS
 #define MAX_WIFI_CONNECTIONS_ATTEMPTS 20
 
-typedef struct {
-  bool sunPositionsError;
-  bool currentConditionsError;
-  bool forecastConditionsError;
-} Errors;
+//TIME CONSTS
+#define BASE_YEAR 1900
 
-WiFiManager wifiManager;
+#define TZ              0
+#define DST_MN          60
+#define TZ_SEC          ((TZ)*3600)
+#define DST_SEC         ((DST_MN)*60)
 
 //MONTHS NAMES
 const char * months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
 
 //DAYS OF WEEK NAMES
 const char * daysOfWeek[] = {"Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"};
+
+//VARIABLE DECLARATIONS
+timeval cbtime;
+bool cbtime_set = false;
+time_t now;
+
+WiFiManager wifiManager;
+
+typedef struct {
+  bool sunPositionsError;
+  bool currentConditionsError;
+  bool forecastConditionsError;
+} Errors;
+
+
+
+
+
+

@@ -12,6 +12,6 @@ const int SUNSET_HOURS = 17;
 const int SUNRISE_HOURS = 7;
 
 //NTP CLIENT PARAMETERS
-#define NTP_PACKET_SIZE  48
-const char* NTP_POOL = "<NTP_POOL>";
-const unsigned int localPort = 8888;
+const char* NTP_POOL = "pool.ntp.org";
+
+
