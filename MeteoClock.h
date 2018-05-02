@@ -49,11 +49,6 @@
 //TIME CONSTS
 #define BASE_YEAR 1900
 
-#define TZ              0
-#define DST_MN          60
-#define TZ_SEC          ((TZ)*3600)
-#define DST_SEC         ((DST_MN)*60)
-
 //MONTHS NAMES
 const char * months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
 
