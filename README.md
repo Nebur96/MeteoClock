@@ -14,7 +14,7 @@ MeteoClock is an arduino based clock that displays current date, hours, weather 
 - get correct sunrise and sunset hours by gps coordinate
 - change icons between day and night icon sets 
 - WiFi connection manager
-- daylight savings changes (Portugal only)
+- daylight saving time
 
 # Setup:
 
@@ -23,11 +23,11 @@ Install the following libraries:
 - Adafruit_ILI9341
 - ArduinoJson
 - ESP8266WiFi
-- WiFiUDP
 - DNSServer
 - ESP8266WebServer
 - WiFiManager
 - TimeLib
+- ArduinoTimerObject
 
 Edit the file "config.h" and enter your values:
 - WUNDERGROUD_API -> your Wunderground API
@@ -38,3 +38,5 @@ Edit the file "config.h" and enter your values:
 - SUNSET_HOURS -> your default hours for sunset 
 - SUNRISE_HOURS -> your default hours for sunrise
 - NTP_POOL -> NTP pool to retrieve time
+- TZ -> (utc+) in hours
+- DST_MN -> use 60mn for summer time in some countries
