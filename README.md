@@ -30,9 +30,7 @@ Install the following libraries:
 - ArduinoTimerObject
 
 Edit the file "config.h" and enter your values:
-- WUNDERGROUD_API -> your Wunderground API
-- WUNDERGROUND_COUNTRY -> your country Wunderground reference
-- WUNDERGROUND_CITY -> your city Wunderground reference
+- OPEN_WEATHER_KEY -> OpenWeatherMap
 - LAT -> latitude of your location
 - LNG -> longitude of your location
 - SUNSET_HOURS -> your default hours for sunset 
