@@ -4,7 +4,6 @@
 #ifndef _GFX_UI_H
 #define _GFX_UI_H
 
-
 #define BUFFPIXEL 20
 
 enum TextAlignment {
@@ -31,4 +30,3 @@ class GfxUi {
 };
 
 #endif
-
